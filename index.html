@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Commit Diff Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #58a6ff;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #c9d1d9;
+        }
+
+        .tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .date-range {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        button {
+            background-color: #238636;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #2ea043;
+        }
+
+        button:disabled {
+            background-color: #21262d;
+            color: #8b949e;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #8b949e;
+        }
+
+        .spinner {
+            border: 3px solid #21262d;
+            border-top: 3px solid #58a6ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background-color: #da3633;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .info {
+            background-color: #1f6feb;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .commit-block {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .commit-header {
+            padding: 15px;
+            background-color: #0d1117;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .commit-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #c9d1d9;
+            margin-bottom: 8px;
+        }
+
+        .commit-meta {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .commit-meta a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+
+        .commit-meta a:hover {
+            text-decoration: underline;
+        }
+
+        .diff-container {
+            overflow-x: auto;
+        }
+
+        .diff-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 12px;
+        }
+
+        .diff-table td {
+            padding: 2px 10px;
+            white-space: pre;
+        }
+
+        .line-number {
+            width: 40px;
+            text-align: right;
+            color: #6e7681;
+            user-select: none;
+            vertical-align: top;
+        }
+
+        .line-content {
+            padding-left: 10px;
+        }
+
+        .diff-add {
+            background-color: #0d4429;
+        }
+
+        .diff-add .line-content {
+            background-color: #0d4429;
+        }
+
+        .diff-remove {
+            background-color: #5a1e1e;
+        }
+
+        .diff-remove .line-content {
+            background-color: #5a1e1e;
+        }
+
+        .diff-context {
+            background-color: #161b22;
+        }
+
+        .diff-hunk {
+            background-color: #1f6feb;
+            color: white;
+            font-weight: 600;
+        }
+
+        .no-changes {
+            padding: 20px;
+            text-align: center;
+            color: #8b949e;
+        }
+
+        .progress {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            background-color: #21262d;
+            height: 20px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            background-color: #238636;
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        /* Adding language toggle button styles */
+        .lang-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: #c9d1d9;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            z-index: 1000;
+        }
+
+        .lang-toggle:hover {
+            background-color: #30363d;
+            border-color: #58a6ff;
+        }
+
+        @media (max-width: 768px) {
+            .lang-toggle {
+                top: 10px;
+                right: 10px;
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Adding language toggle button -->
+    <button class="lang-toggle" onclick="toggleLanguage()" id="lang-btn">English</button>
+
+    <div class="container">
+        <h1 id="page-title">GitHub Commit Diff Viewer</h1>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('single')" id="tab-single">单个 Commit</button>
+            <button class="tab" onclick="switchTab('range')" id="tab-range">时间范围</button>
+        </div>
+
+        <div id="single-tab" class="tab-content active">
+            <div class="form-group">
+                <label for="commit-url" id="label-commit-url">Commit URL:</label>
+                <input type="text" id="commit-url" placeholder="https://github.com/owner/repo/commit/sha">
+            </div>
+            <div class="form-group">
+                <label for="single-filename" id="label-single-filename">文件名:</label>
+                <input type="text" id="single-filename" placeholder="notes.txt">
+            </div>
+            <button id="single-submit" onclick="fetchSingleCommit()">查看差异</button>
+        </div>
+
+        <div id="range-tab" class="tab-content">
+            <div class="form-group">
+                <label for="commits-url" id="label-commits-url">Commits URL:</label>
+                <input type="text" id="commits-url" placeholder="https://github.com/owner/repo/commits">
+            </div>
+            <div class="form-group">
+                <label for="range-filename" id="label-range-filename">文件名:</label>
+                <input type="text" id="range-filename" placeholder="notes.txt">
+            </div>
+            <div class="form-group">
+                <label id="label-date-range">时间范围:</label>
+                <div class="date-range">
+                    <div>
+                        <label for="start-date" id="label-start-date">开始日期:</label>
+                        <input type="date" id="start-date">
+                    </div>
+                    <div>
+                        <label for="end-date" id="label-end-date">结束日期:</label>
+                        <input type="date" id="end-date">
+                    </div>
+                </div>
+            </div>
+            <button id="range-submit" onclick="fetchCommitRange()">查看差异</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p id="loading-text">正在加载...</p>
+        </div>
+
+        <div id="progress" style="display: none;"></div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
